@@ -44,6 +44,8 @@
 - [iOS] Fix hosted React Native views receiving no touches inside a `BottomSheet` or `Popover`. ([#48969](https://github.com/expo/expo/pull/48969) by [@nishan](https://github.com/intergalacticspacehighway))
 - [Android] Fix touch handling for hosted React Native views: a `Pressable` dropped its press when the finger moved, hosted content stole gestures from enclosing scrollables, a back gesture was reported as a long press, a press fired after a Jetpack Compose pager or scrollable had already claimed the gesture, and content inside `AlertDialog`, `DropdownMenu`, `ExposedDropdownMenu` and `TooltipBox` received no touches at all. Hosted views are now measured where Jetpack Compose placed them, and dispatch their own touches only when presented in their own window. ([#48970](https://github.com/expo/expo/pull/48970) by [@nishan](https://github.com/intergalacticspacehighway))
 - [Android] Fix a hosted `Pressable` in a `PagerView` ignoring presses on pages after the first, where a re-parented host kept the bounds of the holder it left and answered for a screen area it no longer occupied. ([#46386](https://github.com/expo/expo/issues/46386) by [@TomCorvus](https://github.com/TomCorvus)) ([#48970](https://github.com/expo/expo/pull/48970) by [@nishan](https://github.com/intergalacticspacehighway))
+- [Android] Explicitly enable `buildFeatures.buildConfig`, required by AGP 9. ([#47729](https://github.com/expo/expo/pull/47729) by [@gabrieldonadel](https://github.com/gabrieldonadel))
+- Fix `Host` color scheme type errors on React Native 0.87. ([#47729](https://github.com/expo/expo/pull/47729) by [@gabrieldonadel](https://github.com/gabrieldonadel))
 
 ### 💡 Others
 
