@@ -25,6 +25,13 @@ internal final class AppIntentInvocationStore {
     self.defaults = defaults
   }
 
+  init(userDefaultsSuiteName: String) {
+    guard let defaults = UserDefaults(suiteName: userDefaultsSuiteName) else {
+      fatalError("Failed to create the '\(userDefaultsSuiteName)' UserDefaults suite")
+    }
+    self.defaults = defaults
+  }
+
   private func storageKey(_ key: String) -> String {
     return "dev.expo.appintents.\(key)"
   }

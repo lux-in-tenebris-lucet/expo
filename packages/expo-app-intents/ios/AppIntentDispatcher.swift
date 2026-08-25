@@ -1,3 +1,4 @@
+import ExpoModulesCore
 import Foundation
 
 /// Ownership token for a single `AppIntentDispatcher.invocationEvents(for:)` subscription.
@@ -5,19 +6,14 @@ import Foundation
 /// Cancelling the read task alone still lets an old module receive invocations after a JavaScript
 /// reload replaces it, so the token prevents it from subscribing at all.
 internal final class AppIntentEventSubscription: @unchecked Sendable {
-  private let lock = NSLock()
-  private var isInvalidated = false
+  private let isInvalidated = Mutex(false)
 
   internal var isValid: Bool {
-    lock.lock()
-    defer { lock.unlock() }
-    return !isInvalidated
+    return isInvalidated.withLock { !$0 }
   }
 
   internal func invalidate() {
-    lock.lock()
-    defer { lock.unlock() }
-    isInvalidated = true
+    isInvalidated.withLock { $0 = true }
   }
 }
 
@@ -37,7 +33,7 @@ public actor AppIntentDispatcher {
   /// `AppShortcutsProvider` because the pod cannot reference that type.
   private var shortcutsRefreshHandler: (@Sendable () async -> Void)?
 
-  internal init(store: AppIntentInvocationStore = AppIntentInvocationStore()) {
+  internal init(store: sending AppIntentInvocationStore = AppIntentInvocationStore()) {
     self.store = store
   }
 

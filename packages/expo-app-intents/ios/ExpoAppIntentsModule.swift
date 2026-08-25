@@ -9,7 +9,7 @@ internal final class ShortcutsRefreshUnavailableException: Exception, @unchecked
   }
 }
 
-public final class ExpoAppIntentsModule: Module {
+public final class ExpoAppIntentsModule: Module, @unchecked Sendable {
   private var invocationEventsTask: Task<Void, Never>?
   private var invocationEventsSubscription: AppIntentEventSubscription?
 
@@ -18,7 +18,7 @@ public final class ExpoAppIntentsModule: Module {
 
     Events("onIntent")
 
-    OnCreate {
+    OnCreate { [self] in
       // The token is created here, synchronously, so `OnDestroy` can invalidate it before the task
       // below ever reaches the dispatcher.
       let subscription = AppIntentEventSubscription()
@@ -28,7 +28,7 @@ public final class ExpoAppIntentsModule: Module {
           guard !Task.isCancelled else {
             break
           }
-          await self?.sendIntentEvent(invocation)
+          self?.sendIntentEvent(invocation)
         }
       }
     }
