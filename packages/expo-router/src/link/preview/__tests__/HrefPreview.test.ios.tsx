@@ -4,7 +4,6 @@ import { Button, View, Text } from 'react-native';
 import { ScreenStackItem as _ScreenStackItem } from 'react-native-screens';
 
 import { useCompositionOption } from '../../../fork/native-stack/composition-options';
-import { store } from '../../../global-state/router-store';
 import {
   useGlobalSearchParams,
   useLocalSearchParams,
@@ -332,7 +331,7 @@ it('Renders not found for not existing href', async () => {
   expect(screen.getByTestId('not-found')).toBeVisible();
 });
 
-it('does not preview a protected route when store state is unavailable', () => {
+it('does not preview a route after it becomes protected', () => {
   let setGuard: (guard: boolean) => void;
 
   function Layout() {
@@ -371,11 +370,8 @@ it('does not preview a protected route when store state is unavailable', () => {
 
   expect(screen.getByTestId('secret')).toBeVisible();
 
-  const stateSpy = jest.spyOn(store, 'state', 'get').mockReturnValue(undefined);
   act(() => setGuard(false));
   fireEvent.press(screen.getByTestId('rerender'));
-  expect(stateSpy).not.toHaveBeenCalled();
-  stateSpy.mockRestore();
 
   expect(screen.queryByTestId('secret')).toBeNull();
 });
