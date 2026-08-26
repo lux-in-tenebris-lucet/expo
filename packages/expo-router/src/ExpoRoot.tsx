@@ -8,6 +8,7 @@ import { INTERNAL_SLOT_NAME, NOT_FOUND_ROUTE_NAME, SITEMAP_ROUTE_NAME } from './
 import { useDomComponentNavigation } from './domComponents/useDomComponentNavigation';
 import { NavigationContainer as UpstreamNavigationContainer } from './fork/NavigationContainer';
 import type { ExpoLinkingOptions } from './getLinkingConfig';
+import { RemovalPreventionProvider } from './global-state/removalPrevention';
 import { useStore } from './global-state/router-store';
 import { RouterRegistryProvider } from './global-state/routerRegistry';
 import { RoutingQueueProvider } from './global-state/routingQueueContext';
@@ -15,7 +16,6 @@ import { maybeHideSplashScreen } from './global-state/store';
 import { StoreContext } from './global-state/storeContext';
 import { shouldAppendNotFound, shouldAppendSitemap } from './global-state/utils';
 import { LinkPreviewContextProvider } from './link/preview/LinkPreviewContext';
-import { handleNavigationOnReady } from './navigationEvents/navigation';
 import { Screen } from './primitives';
 import type { LinkingOptions } from './react-navigation/native';
 import { StackRouter, useNavigationBuilder } from './react-navigation/native';
@@ -95,7 +95,6 @@ const initialUrl =
     : undefined;
 
 function onNavigationReady() {
-  handleNavigationOnReady();
   maybeHideSplashScreen();
 }
 
@@ -146,15 +145,17 @@ function ContextNavigator({
   return (
     <StoreContext.Provider value={storeValue}>
       <RouterRegistryProvider>
-        <UpstreamNavigationContainer
-          ref={navigationRef}
-          linking={linkingConfig as LinkingOptions<any>}
-          documentTitle={documentTitle}
-          onReady={onNavigationReady}>
-          <WrapperComponent>
-            <Content rootComponent={rootComponent} />
-          </WrapperComponent>
-        </UpstreamNavigationContainer>
+        <RemovalPreventionProvider>
+          <UpstreamNavigationContainer
+            ref={navigationRef}
+            linking={linkingConfig as LinkingOptions<any>}
+            documentTitle={documentTitle}
+            onReady={onNavigationReady}>
+            <WrapperComponent>
+              <Content rootComponent={rootComponent} />
+            </WrapperComponent>
+          </UpstreamNavigationContainer>
+        </RemovalPreventionProvider>
       </RouterRegistryProvider>
     </StoreContext.Provider>
   );

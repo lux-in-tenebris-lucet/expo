@@ -26,7 +26,6 @@ import { NavigationHelpersContext } from './NavigationHelpersContext';
 import { NavigationMetaContext } from './NavigationMetaContext';
 import { NavigationStateContext } from './NavigationStateContext';
 import { NavigatorTypeContext } from './NavigatorTypeContext';
-import { PreventRemoveContext } from './PreventRemoveContext';
 import { Screen } from './Screen';
 import { isArrayEqual } from './isArrayEqual';
 import {
@@ -45,17 +44,9 @@ import { useEventEmitter } from './useEventEmitter';
 import { useFocusEvents } from './useFocusEvents';
 import { useFocusedListenersChildrenAdapter } from './useFocusedListenersChildrenAdapter';
 import { FocusedRouteKeyContext } from './useIsFocused';
-import { useKeyedChildListeners } from './useKeyedChildListeners';
 import { useLazyValue } from './useLazyValue';
 import { useNavigationHelpers } from './useNavigationHelpers';
 import { NavigatorStateContext } from './useNavigationState';
-import {
-  emitBeforeRemove,
-  getPreventableRoutes,
-  shouldPreventRemove,
-  useOnPreventRemove,
-} from './useOnPreventRemove';
-import { usePreventRemoveState } from './usePreventRemoveState';
 import { useRegisterNavigator } from './useRegisterNavigator';
 
 // This is to make TypeScript compiler happy
@@ -460,21 +451,6 @@ export function useNavigationBuilder<
 
   const { listeners: childListeners, addListener } = useChildListeners();
 
-  const { keyedListeners, addKeyedListener } = useKeyedChildListeners();
-
-  const { isRoutePrevented, preventRemoveContextValue } = usePreventRemoveState({
-    getState,
-    state,
-  });
-
-  useOnPreventRemove({
-    getState,
-    isRoutePrevented,
-    emitter,
-    preventRemoveListeners: keyedListeners.preventRemove,
-    beforeRemoveListeners: keyedListeners.beforeRemove,
-  });
-
   const onAction = React.useCallback(
     (action: NavigationAction) => handleAction(action, stateKeyRef.current),
     [handleAction]
@@ -486,28 +462,9 @@ export function useNavigationBuilder<
       shouldActionChangeFocus: router.shouldActionChangeFocus,
       getStateForRouteFocus: (registryState, routeKey) =>
         router.getStateForRouteFocus(registryState as State, routeKey),
-      // TODO(@ubax): invoke removal-prevention callbacks from the global reducer.
-      // https://linear.app/expo/issue/ENG-26123
-      shouldPreventRemove: (prev, next, action) =>
-        shouldPreventRemove(
-          emitter,
-          keyedListeners.preventRemove,
-          isRoutePrevented,
-          getPreventableRoutes(prev),
-          getPreventableRoutes(next, prev.type),
-          action
-        ),
-      emitBeforeRemove: (prev, next, action) =>
-        emitBeforeRemove(
-          emitter,
-          keyedListeners.beforeRemove,
-          getPreventableRoutes(prev),
-          getPreventableRoutes(next, prev.type),
-          action
-        ),
       routeNode: routeNode ?? undefined,
     }),
-    [emitter, isRoutePrevented, keyedListeners, reduce, routeNode, routeNamesKey, router]
+    [reduce, routeNode, routeNamesKey, router]
   );
 
   useRegisterRouter(committedState.key, registryEntry);
@@ -567,9 +524,7 @@ export function useNavigationBuilder<
     screenLayout,
     getState,
     addListener,
-    addKeyedListener,
     router,
-    // @ts-expect-error: this should have both core and custom events, but too much work right now
     emitter,
   });
   useCurrentRender({
@@ -594,11 +549,9 @@ export function useNavigationBuilder<
         <NavigationHelpersContext.Provider value={navigation}>
           <NavigatorStateContext.Provider value={state}>
             <FocusedRouteKeyContext.Provider value={state.routes[state.index]?.key}>
-              <PreventRemoveContext.Provider value={preventRemoveContextValue}>
-                <NavigatorTypeContext.Provider value={router.type}>
-                  {element}
-                </NavigatorTypeContext.Provider>
-              </PreventRemoveContext.Provider>
+              <NavigatorTypeContext.Provider value={router.type}>
+                {element}
+              </NavigatorTypeContext.Provider>
             </FocusedRouteKeyContext.Provider>
           </NavigatorStateContext.Provider>
         </NavigationHelpersContext.Provider>

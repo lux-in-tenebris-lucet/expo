@@ -10,10 +10,15 @@ import {
   areUrlObjectsEqual,
   getRouteInfoFromState,
 } from '../../global-state/getRouteInfoFromState';
+import {
+  GlobalRoutesWithRemovalPreventedContext,
+  RemovalPreventionProvider,
+} from '../../global-state/removalPrevention';
 import { RouteInfoContext } from '../../global-state/routeInfoContext';
 import { RouterRegistryContext, RouterRegistryProvider } from '../../global-state/routerRegistry';
 import { StoreContext } from '../../global-state/storeContext';
 import { useNavigationTreeReducer } from '../../global-state/useNavigationTreeReducer';
+import { useNavigationTreeReportEvents } from '../../global-state/useNavigationTreeReportEvents';
 import useLatestCallback from '../../utils/useLatestCallback';
 import {
   CommonActions,
@@ -39,7 +44,6 @@ import type {
 import { useChildListeners } from './useChildListeners';
 import { useClientLayoutEffect } from './useClientLayoutEffect';
 import { useEventEmitter } from './useEventEmitter';
-import { useKeyedChildListeners } from './useKeyedChildListeners';
 import { useOptionsGetters } from './useOptionsGetters';
 
 type InternalNavigationContainerProps = Omit<NavigationContainerProps, 'initialState'> & {
@@ -66,17 +70,17 @@ const duplicateNameWarnings: string[] = [];
  */
 export function BaseNavigationContainer(props: InternalNavigationContainerProps) {
   const registry = use(RouterRegistryContext);
+  const routesWithRemovalPrevented = use(GlobalRoutesWithRemovalPreventedContext);
 
   // TODO(@ubax): investigate if this is really needed
-  if (registry === undefined) {
-    return (
-      <RouterRegistryProvider>
-        <BaseNavigationContainerInner {...props} />
-      </RouterRegistryProvider>
-    );
+  let content = <BaseNavigationContainerInner {...props} />;
+  if (routesWithRemovalPrevented === undefined) {
+    content = <RemovalPreventionProvider>{content}</RemovalPreventionProvider>;
   }
-
-  return <BaseNavigationContainerInner {...props} />;
+  if (registry === undefined) {
+    content = <RouterRegistryProvider>{content}</RouterRegistryProvider>;
+  }
+  return content;
 }
 
 function BaseNavigationContainerInner({
@@ -100,35 +104,26 @@ function BaseNavigationContainerInner({
   }
 
   const registry = use(RouterRegistryContext)!;
+  const routesWithRemovalPrevented = use(GlobalRoutesWithRemovalPreventedContext)!;
   const emitter = useEventEmitter<NavigationContainerEventMap>();
-  // TODO(@ubax): investigate if this is really needed
-  const stackRef = React.useRef<string | undefined>(undefined);
-  // TODO(@ubax): invoke this callback from global reducer dispatches.
-  // https://linear.app/expo/issue/ENG-26123
-  const onDispatchAction = useLatestCallback((action: NavigationAction, noop: boolean) => {
-    emitter.emit({
-      type: '__unsafe_action__',
-      data: { action, noop, stack: stackRef.current },
-    });
-  });
 
   // TODO(@ubax): consider moving this state to ExpoRoot.
-  const { state, getState, getStateForKey, resetNavigator, handleAction, processIntent } =
+  const { state, report, getState, getStateForKey, resetNavigator, handleAction, processIntent } =
     useNavigationTreeReducer({
       initialState,
       routeNode: UNSTABLE_routeNode,
       registry,
+      routesWithRemovalPrevented,
       linking: store?.linking,
       redirects: store?.redirects,
       onStateChangeInsertion: UNSTABLE_onStateChangeInsertion,
     });
+  useNavigationTreeReportEvents(report);
 
   const hasNotifiedInitialStateRef = React.useRef(false);
   const lastNotifiedStateRef = React.useRef<NavigationState | undefined>(undefined);
 
   const { listeners, addListener } = useChildListeners();
-
-  const { addKeyedListener } = useKeyedChildListeners();
 
   const dispatch = useLatestCallback((action: NavigationAction) => {
     if (listeners.focus[0] == null) {
@@ -139,6 +134,7 @@ function BaseNavigationContainerInner({
   });
 
   const dispatchSync = useLatestCallback((action: NavigationAction) => {
+    // TODO(@ubax): Throw if this is called from a `removePrevented` callback.
     handleAction(action);
   });
 
@@ -242,23 +238,12 @@ function BaseNavigationContainerInner({
   const builderContext = React.useMemo(
     () => ({
       addListener,
-      addKeyedListener,
       handleAction,
       getStateForKey,
       resetNavigator,
-      onDispatchAction,
       onOptionsChange,
-      stackRef,
     }),
-    [
-      addListener,
-      addKeyedListener,
-      getStateForKey,
-      handleAction,
-      onDispatchAction,
-      onOptionsChange,
-      resetNavigator,
-    ]
+    [addListener, getStateForKey, handleAction, onOptionsChange, resetNavigator]
   );
 
   const context = React.useMemo(
