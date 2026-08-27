@@ -3,13 +3,9 @@ import * as React from 'react';
 import { use } from 'react';
 import type { ScrollView } from 'react-native';
 
-import {
-  type EventArg,
-  NavigationContext,
-  type NavigationProp,
-  type ParamListBase,
-  useRoute,
-} from '../core';
+import { type EventArg, NavigationContext, useRoute } from '../core';
+import { TabNavigationsContext } from '../core/TabNavigationsContext';
+import { NavigatorStateContext } from '../core/useNavigationState';
 
 type ScrollOptions = { x?: number; y?: number; animated?: boolean };
 
@@ -55,7 +51,11 @@ function getScrollableNode(ref: React.RefObject<ScrollableWrapper>) {
 
 export function useScrollToTop(ref: React.RefObject<ScrollableWrapper>) {
   const navigation = use(NavigationContext);
+  const tabNavigations = use(TabNavigationsContext);
+  const navigatorState = use(NavigatorStateContext);
   const route = useRoute();
+  const isDirectlyInTabNavigator = navigatorState?.type === 'tab';
+  const firstRouteKey = navigatorState?.routes[0]?.key;
 
   if (navigation === undefined) {
     throw new Error(
@@ -64,20 +64,6 @@ export function useScrollToTop(ref: React.RefObject<ScrollableWrapper>) {
   }
 
   React.useEffect(() => {
-    const tabNavigations: NavigationProp<ParamListBase>[] = [];
-    let currentNavigation = navigation;
-    // If the screen is nested inside multiple tab navigators, we should scroll to top for any of them
-    // So we need to find all the parent tab navigators and add the listeners there
-    while (currentNavigation) {
-      // TODO: Resolve every ancestor's navigator type at render time, as NavigatorTypeContext does
-      // for the nearest navigator.
-      if (currentNavigation.getState().type === 'tab') {
-        tabNavigations.push(currentNavigation);
-      }
-
-      currentNavigation = currentNavigation.getParent();
-    }
-
     if (tabNavigations.length === 0) {
       return;
     }
@@ -86,7 +72,7 @@ export function useScrollToTop(ref: React.RefObject<ScrollableWrapper>) {
       return tab.addListener(
         // We don't wanna import tab types here to avoid extra deps
         // in addition, there are multiple tab implementations
-        // @ts-expect-error the `tabPress` event is only available when navigation type is tab
+        // @ts-expect-error: the `tabPress` event is only available when navigation type is tab
         'tabPress',
         (e: EventArg<'tabPress', true>) => {
           // We should scroll to top only when the screen is focused
@@ -94,9 +80,7 @@ export function useScrollToTop(ref: React.RefObject<ScrollableWrapper>) {
 
           // In a nested stack navigator, tab press resets the stack to first screen
           // So we should scroll to top only when we are on first screen
-          const isFirst =
-            tabNavigations.includes(navigation) ||
-            navigation.getState().routes[0]!.key === route.key;
+          const isFirst = isDirectlyInTabNavigator || firstRouteKey === route.key;
 
           // Run the operation in the next frame so we're sure all listeners have been run
           // This is necessary to know if preventDefault() has been called
@@ -122,5 +106,5 @@ export function useScrollToTop(ref: React.RefObject<ScrollableWrapper>) {
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, [navigation, ref, route.key]);
+  }, [firstRouteKey, isDirectlyInTabNavigator, navigation, ref, route.key, tabNavigations]);
 }

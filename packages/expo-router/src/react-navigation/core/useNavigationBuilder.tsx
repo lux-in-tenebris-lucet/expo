@@ -9,7 +9,7 @@ import { useComponent } from '../../fork/useComponent';
 import { type RouterRegistryEntry, useRegisterRouter } from '../../global-state/routerRegistry';
 import { useEnqueueRoutingIntent } from '../../global-state/routingQueueContext';
 import { resetNavigatorState } from '../../global-state/stateUtils';
-import useLatestCallback from '../../utils/useLatestCallback';
+import { findStateByKey } from '../../global-state/useNavigationTreeReducer';
 import {
   type DefaultRouterOptions,
   type NavigationAction,
@@ -27,7 +27,9 @@ import { NavigationMetaContext } from './NavigationMetaContext';
 import { NavigationStateContext } from './NavigationStateContext';
 import { NavigatorTypeContext } from './NavigatorTypeContext';
 import { PreventRemoveContext } from './PreventRemoveContext';
+import { RootNavigationStateContext } from './RootNavigationStateContext';
 import { Screen } from './Screen';
+import { TabNavigationsContext } from './TabNavigationsContext';
 import { isArrayEqual } from './isArrayEqual';
 import {
   type DefaultNavigatorOptions,
@@ -263,6 +265,7 @@ export function useNavigationBuilder<
   useRegisterNavigator();
   const routeNode = useRouteNode();
   const enqueue = useEnqueueRoutingIntent();
+  const parentTabNavigations = use(TabNavigationsContext);
 
   const {
     children,
@@ -332,8 +335,9 @@ export function useNavigationBuilder<
   const routeNamesKey = routeNames.join('\0');
 
   const { state: currentState } = use(NavigationStateContext);
+  const rootState = use(RootNavigationStateContext);
 
-  const { getStateForKey, resetNavigator, handleAction } = use(NavigationBuilderContext);
+  const { resetNavigator, handleAction } = use(NavigationBuilderContext);
   if (
     currentState === undefined ||
     currentState.stale !== false ||
@@ -345,10 +349,13 @@ export function useNavigationBuilder<
     );
   }
 
-  const isForeignType = currentState.type !== undefined && currentState.type !== router.type;
+  const treeState = rootState
+    ? (findStateByKey(rootState, currentState.key) ?? currentState)
+    : currentState;
+  const isForeignType = treeState.type !== undefined && treeState.type !== router.type;
   // The reset keeps the complete fields required by every navigator state.
   const committedState = (
-    isForeignType ? resetNavigatorState(currentState, router.type) : currentState
+    isForeignType ? resetNavigatorState(treeState, router.type) : treeState
   ) as State;
   const state = React.useMemo(
     () => router.getStateForDeclaredRoutes(committedState, routeNames),
@@ -375,22 +382,6 @@ export function useNavigationBuilder<
       }),
     [routeNamesKey, router]
   );
-  const getState = useLatestCallback((): State => {
-    const currentState = getStateForKey(stateKeyRef.current);
-    if (currentState === undefined) {
-      return committedState;
-    }
-    if (currentState.stale !== false) {
-      throw new Error(
-        'The mounted navigator no longer has complete state in the global navigation tree.'
-      );
-    }
-    if (currentState.type !== undefined && currentState.type !== router.type) {
-      // The reset keeps the complete fields required by every navigator state.
-      return resetNavigatorState(currentState, router.type) as State;
-    }
-    return currentState as State;
-  });
   const emitter = useEventEmitter<EventMapCore<State>>((e) => {
     const routeNames = [];
 
@@ -463,12 +454,11 @@ export function useNavigationBuilder<
   const { keyedListeners, addKeyedListener } = useKeyedChildListeners();
 
   const { isRoutePrevented, preventRemoveContextValue } = usePreventRemoveState({
-    getState,
-    state,
+    state: committedState,
   });
 
   useOnPreventRemove({
-    getState,
+    state: committedState,
     isRoutePrevented,
     emitter,
     preventRemoveListeners: keyedListeners.preventRemove,
@@ -525,7 +515,7 @@ export function useNavigationBuilder<
     if (isForeignType) {
       return;
     }
-    const committed = getState();
+    const committed = committedState;
 
     if (isArrayEqual(committed.routeNames, routeNames)) {
       pendingRouteNamesRef.current = undefined;
@@ -548,7 +538,7 @@ export function useNavigationBuilder<
   const navigation = useNavigationHelpers<State, ActionHelpers, NavigationAction, EventMap>({
     id: options.id,
     handleAction: onAction,
-    getState,
+    state: committedState,
     emitter,
     router,
   });
@@ -565,13 +555,22 @@ export function useNavigationBuilder<
     navigation,
     screenOptions,
     screenLayout,
-    getState,
+    state: committedState,
     addListener,
     addKeyedListener,
     router,
     // @ts-expect-error: this should have both core and custom events, but too much work right now
     emitter,
   });
+  const focusedRouteKey = state.routes[state.index]?.key;
+  const focusedNavigation = focusedRouteKey ? descriptors[focusedRouteKey]?.navigation : undefined;
+  const tabNavigations = React.useMemo(
+    () => [
+      ...parentTabNavigations,
+      ...(router.type === 'tab' && focusedNavigation ? [focusedNavigation] : []),
+    ],
+    [focusedNavigation, parentTabNavigations, router.type]
+  );
   useCurrentRender({
     state,
     navigation,
@@ -590,19 +589,21 @@ export function useNavigationBuilder<
         : children;
 
     return (
-      <NavigationMetaContext.Provider value={undefined}>
-        <NavigationHelpersContext.Provider value={navigation}>
-          <NavigatorStateContext.Provider value={state}>
-            <FocusedRouteKeyContext.Provider value={state.routes[state.index]?.key}>
-              <PreventRemoveContext.Provider value={preventRemoveContextValue}>
-                <NavigatorTypeContext.Provider value={router.type}>
-                  {element}
-                </NavigatorTypeContext.Provider>
-              </PreventRemoveContext.Provider>
-            </FocusedRouteKeyContext.Provider>
-          </NavigatorStateContext.Provider>
-        </NavigationHelpersContext.Provider>
-      </NavigationMetaContext.Provider>
+      <TabNavigationsContext.Provider value={tabNavigations}>
+        <NavigationMetaContext.Provider value={undefined}>
+          <NavigationHelpersContext.Provider value={navigation}>
+            <NavigatorStateContext.Provider value={state}>
+              <FocusedRouteKeyContext.Provider value={state.routes[state.index]?.key}>
+                <PreventRemoveContext.Provider value={preventRemoveContextValue}>
+                  <NavigatorTypeContext.Provider value={router.type}>
+                    {element}
+                  </NavigatorTypeContext.Provider>
+                </PreventRemoveContext.Provider>
+              </FocusedRouteKeyContext.Provider>
+            </NavigatorStateContext.Provider>
+          </NavigationHelpersContext.Provider>
+        </NavigationMetaContext.Provider>
+      </TabNavigationsContext.Provider>
     );
   });
 

@@ -71,7 +71,7 @@ type Options<
   navigation: NavigationHelpers<ParamListBase>;
   screenOptions: ScreenOptionsOrCallback<ScreenOptions> | undefined;
   screenLayout: ScreenLayout<ScreenOptions> | undefined;
-  getState: () => State;
+  state: State;
   addListener: AddListener;
   addKeyedListener: AddKeyedListener;
   router: Router<State, NavigationAction>;
@@ -99,7 +99,7 @@ export function useDescriptors<
   navigation,
   screenOptions,
   screenLayout,
-  getState,
+  state,
   addListener,
   addKeyedListener,
   router,
@@ -107,20 +107,13 @@ export function useDescriptors<
 }: Options<State, ScreenOptions, EventMap>) {
   const theme = use(ThemeContext);
   const [options, setOptions] = React.useState<Record<string, ScreenOptions>>({});
-  const {
-    handleAction,
-    getStateForKey,
-    resetNavigator,
-    onDispatchAction,
-    onOptionsChange,
-    stackRef,
-  } = use(NavigationBuilderContext);
+  const { handleAction, resetNavigator, onDispatchAction, onOptionsChange, stackRef } =
+    use(NavigationBuilderContext);
 
   const context = React.useMemo(
     () => ({
       navigation,
       handleAction,
-      getStateForKey,
       resetNavigator,
       addListener,
       addKeyedListener,
@@ -131,7 +124,6 @@ export function useDescriptors<
     [
       navigation,
       handleAction,
-      getStateForKey,
       resetNavigator,
       addListener,
       addKeyedListener,
@@ -144,7 +136,7 @@ export function useDescriptors<
   const getNavigation = useNavigationCache<State, ScreenOptions, EventMap, ActionHelpers>({
     routes,
     routeNames,
-    getState,
+    state,
     navigation,
     setOptions,
     router,
