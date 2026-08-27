@@ -41,7 +41,6 @@ test('preserves reference for navigation objects', () => {
     ],
   };
 
-  const getState = () => state;
   const navigation = {} as any;
   const setOptions = (() => {}) as any;
   const router = MockRouter({});
@@ -53,7 +52,7 @@ test('preserves reference for navigation objects', () => {
     const getNavigation = useNavigationCache({
       routes: state.routes,
       routeNames: state.routeNames,
-      getState,
+      state,
       navigation,
       setOptions,
       router,
@@ -82,15 +81,6 @@ test('preserves reference for navigation objects', () => {
 test('preserves placeholder navigation after the route is created', () => {
   let routeNames = ['Foo', 'Bar'];
   let routes = [{ key: 'Foo-key', name: 'Foo' }];
-  const getState = (): NavigationState => ({
-    type: 'tab',
-    stale: false as const,
-    routeKeySeq: 0,
-    index: 0,
-    key: 'State',
-    routeNames,
-    routes,
-  });
   const navigation = {
     getId: () => 'State',
     getParent: jest.fn(),
@@ -100,11 +90,20 @@ test('preserves placeholder navigation after the route is created', () => {
   let getNavigation: ReturnType<typeof useNavigationCache>;
 
   const Test = () => {
+    const state: NavigationState = {
+      type: 'tab',
+      stale: false,
+      routeKeySeq: 0,
+      index: 0,
+      key: 'State',
+      routeNames,
+      routes,
+    };
     const emitter = useEventEmitter();
     getNavigation = useNavigationCache({
       routes,
       routeNames,
-      getState,
+      state,
       navigation,
       setOptions,
       router,

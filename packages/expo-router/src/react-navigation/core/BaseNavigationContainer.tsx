@@ -15,8 +15,8 @@ import {
   RemovalPreventionProvider,
 } from '../../global-state/removalPrevention';
 import { RouteInfoContext } from '../../global-state/routeInfoContext';
+import { RouterConfigContext } from '../../global-state/routerConfigContext';
 import { RouterRegistryContext, RouterRegistryProvider } from '../../global-state/routerRegistry';
-import { StoreContext } from '../../global-state/storeContext';
 import { useNavigationTreeReducer } from '../../global-state/useNavigationTreeReducer';
 import { useNavigationTreeReportEvents } from '../../global-state/useNavigationTreeReportEvents';
 import useLatestCallback from '../../utils/useLatestCallback';
@@ -32,6 +32,7 @@ import { EnsureSingleNavigator } from './EnsureSingleNavigator';
 import { NavigationBuilderContext } from './NavigationBuilderContext';
 import { NavigationContainerRefContext } from './NavigationContainerRefContext';
 import { NavigationStateContext } from './NavigationStateContext';
+import { RootNavigationStateContext } from './RootNavigationStateContext';
 import { checkDuplicateRouteNames } from './checkDuplicateRouteNames';
 import { checkSerializable } from './checkSerializable';
 import { NOT_INITIALIZED_ERROR } from './createNavigationContainerRef';
@@ -50,7 +51,6 @@ type InternalNavigationContainerProps = Omit<NavigationContainerProps, 'initialS
   initialState: InitialState;
   ref?: React.Ref<NavigationContainerRef<ParamListBase>>;
   UNSTABLE_routeNode?: RouteNode;
-  UNSTABLE_onStateChangeInsertion?: (state: NavigationState) => void;
 };
 
 const serializableWarnings: string[] = [];
@@ -89,13 +89,12 @@ function BaseNavigationContainerInner({
   onStateChange,
   onReady,
   UNSTABLE_routeNode,
-  UNSTABLE_onStateChangeInsertion,
   theme,
   children,
 }: InternalNavigationContainerProps) {
   const parent = use(NavigationStateContext);
   const inheritedRouteInfo = use(RouteInfoContext);
-  const store = use(StoreContext);
+  const routerConfig = use(RouterConfigContext);
 
   if (!parent.isDefault) {
     throw new Error(
@@ -108,16 +107,14 @@ function BaseNavigationContainerInner({
   const emitter = useEventEmitter<NavigationContainerEventMap>();
 
   // TODO(@ubax): consider moving this state to ExpoRoot.
-  const { state, report, getState, getStateForKey, resetNavigator, handleAction, processIntent } =
-    useNavigationTreeReducer({
-      initialState,
-      routeNode: UNSTABLE_routeNode,
-      registry,
-      routesWithRemovalPrevented,
-      linking: store?.linking,
-      redirects: store?.redirects,
-      onStateChangeInsertion: UNSTABLE_onStateChangeInsertion,
-    });
+  const { state, report, resetNavigator, handleAction, processIntent } = useNavigationTreeReducer({
+    initialState,
+    routeNode: UNSTABLE_routeNode,
+    registry,
+    routesWithRemovalPrevented,
+    linking: routerConfig?.linking,
+    redirects: routerConfig?.redirects,
+  });
   useNavigationTreeReportEvents(report);
 
   const hasNotifiedInitialStateRef = React.useRef(false);
@@ -152,9 +149,7 @@ function BaseNavigationContainerInner({
     }
   });
 
-  const getRootState = useLatestCallback(() => {
-    return getState();
-  });
+  const getRootState = useLatestCallback(() => state);
 
   const getCurrentRoute = useLatestCallback(() => {
     const state = getRootState();
@@ -168,9 +163,8 @@ function BaseNavigationContainerInner({
     return route as Route<string> | undefined;
   });
 
-  const isReady = useLatestCallback(
-    () => listeners.focus[0] != null && registry.has(getState().key)
-  );
+  // TODO(@ubax): check if this is still needed anywhere
+  const isReady = useLatestCallback(() => listeners.focus[0] != null && registry.has(state.key));
 
   const { addOptionsGetter, getCurrentOptions } = useOptionsGetters({});
 
@@ -188,7 +182,7 @@ function BaseNavigationContainerInner({
       isFocused: () => true,
       canGoBack,
       getParent: () => undefined,
-      getState,
+      getState: getRootState,
       getRootState,
       getCurrentRoute,
       getCurrentOptions,
@@ -205,7 +199,6 @@ function BaseNavigationContainerInner({
       getCurrentOptions,
       getCurrentRoute,
       getRootState,
-      getState,
       isReady,
     ]
   );
@@ -239,11 +232,10 @@ function BaseNavigationContainerInner({
     () => ({
       addListener,
       handleAction,
-      getStateForKey,
       resetNavigator,
       onOptionsChange,
     }),
-    [addListener, getStateForKey, handleAction, onOptionsChange, resetNavigator]
+    [addListener, handleAction, onOptionsChange, resetNavigator]
   );
 
   const context = React.useMemo(
@@ -373,10 +365,12 @@ function BaseNavigationContainerInner({
       <NavigationBuilderContext.Provider value={builderContext}>
         <NavigationStateContext.Provider value={context}>
           <RouteInfoContext.Provider value={routeInfo}>
-            <EnsureSingleNavigator>
-              <ThemeProvider value={theme}>{children}</ThemeProvider>
-            </EnsureSingleNavigator>
-            <RoutingQueueDrainer ready={registry.has(state.key)} processIntent={processIntent} />
+            <RootNavigationStateContext.Provider value={state}>
+              <EnsureSingleNavigator>
+                <ThemeProvider value={theme}>{children}</ThemeProvider>
+              </EnsureSingleNavigator>
+              <RoutingQueueDrainer ready={registry.has(state.key)} processIntent={processIntent} />
+            </RootNavigationStateContext.Provider>
           </RouteInfoContext.Provider>
         </NavigationStateContext.Provider>
       </NavigationBuilderContext.Provider>

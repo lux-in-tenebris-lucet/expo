@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 
-import type { NavigationAction, NavigationState, ParamListBase } from '../routers';
+import type { NavigationAction, ParamListBase } from '../routers';
 import type { NavigationHelpers } from './types';
 
 export type ListenerMap = {
@@ -22,13 +22,11 @@ export type FocusedNavigationListener = <T>(callback: FocusedNavigationCallback<
  */
 export const NavigationBuilderContext = React.createContext<{
   handleAction: (action: NavigationAction, originKey?: string) => void;
-  getStateForKey: (key: string) => NavigationState | undefined;
   resetNavigator: (stateKey: string, routerType: string | undefined) => void;
   addListener?: AddListener;
   onOptionsChange: (options: object, routeKey?: string) => void;
 }>({
   handleAction: () => undefined,
-  getStateForKey: () => undefined,
   resetNavigator: () => undefined,
   onOptionsChange: () => undefined,
 });

@@ -31,12 +31,10 @@ function renderReducer({
   state = initialState,
   registry,
   routesWithRemovalPrevented = [],
-  onStateChangeInsertion = jest.fn(),
 }: {
   state?: NavigationState;
   registry: RouterRegistry;
   routesWithRemovalPrevented?: readonly string[];
-  onStateChangeInsertion?: (state: NavigationState) => void;
 }) {
   const reports: NonNullable<ReturnType<typeof useNavigationTreeReducer>['report']>[] = [];
   const result = renderHook<
@@ -48,7 +46,6 @@ function renderReducer({
         initialState: state,
         registry,
         routesWithRemovalPrevented,
-        onStateChangeInsertion,
       });
       if (reducer.report) {
         reports.push(reducer.report);
@@ -186,10 +183,8 @@ it('reduces consecutive actions against accumulated state with one committed upd
     state: { ...state, index: state.index + 1 },
     affectedRouteKey: state.routes[state.index + 1]!.key,
   }));
-  const onStateChangeInsertion = jest.fn();
   const result = renderReducer({
     registry: new Map([['root', entry(reduce)]]),
-    onStateChangeInsertion,
   });
 
   const firstAction = { type: 'NEXT_FIRST' };
@@ -206,7 +201,27 @@ it('reduces consecutive actions against accumulated state with one committed upd
     expect.objectContaining({ type: 'action-dispatched', action: firstAction }),
     expect.objectContaining({ type: 'action-dispatched', action: secondAction }),
   ]);
-  expect(onStateChangeInsertion).toHaveBeenCalledTimes(2);
+});
+
+it('logs an error for stale focused state after commit', () => {
+  const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+  const nodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'development';
+  const reduce = jest.fn((state: NavigationState) => {
+    // `NavigationState` excludes stale committed state, which this test deliberately creates.
+    const staleState = {
+      ...state,
+      routes: [{ ...state.routes[0]!, state: { ...state, stale: true as const } }],
+    } as unknown as NavigationState;
+    return { state: staleState, affectedRouteKey: state.routes[0]!.key };
+  });
+  const result = renderReducer({ registry: new Map([['root', entry(reduce)]]) });
+
+  act(() => result.result.current.handleAction({ type: 'STALE' }));
+
+  expect(error).toHaveBeenCalledWith('Detected stale state. This is likely a bug in Expo Router.');
+  process.env.NODE_ENV = nodeEnv;
+  error.mockRestore();
 });
 
 it('reduces consecutive queued intents against accumulated state', () => {
@@ -449,24 +464,4 @@ it('throws for an incomplete initial state', () => {
       })
     )
   ).toThrow('incomplete initial state');
-});
-
-it('reads the latest root state by key', () => {
-  const result = renderReducer({
-    registry: new Map([
-      [
-        'root',
-        entry((state) => ({
-          state: { ...state, index: 1 },
-          affectedRouteKey: state.routes[1]!.key,
-        })),
-      ],
-    ]),
-  });
-
-  act(() => result.result.current.handleAction({ type: 'NEXT' }));
-
-  expect(result.result.current.getState()).toBe(result.result.current.state);
-  expect(result.result.current.getStateForKey('root')).toBe(result.result.current.state);
-  expect(result.result.current.getStateForKey('missing')).toBeUndefined();
 });

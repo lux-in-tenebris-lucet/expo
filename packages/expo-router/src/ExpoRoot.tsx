@@ -8,12 +8,12 @@ import { INTERNAL_SLOT_NAME, NOT_FOUND_ROUTE_NAME, SITEMAP_ROUTE_NAME } from './
 import { useDomComponentNavigation } from './domComponents/useDomComponentNavigation';
 import { NavigationContainer as UpstreamNavigationContainer } from './fork/NavigationContainer';
 import type { ExpoLinkingOptions } from './getLinkingConfig';
+import { navigationRef } from './global-state/navigationRef';
 import { RemovalPreventionProvider } from './global-state/removalPrevention';
-import { useStore } from './global-state/router-store';
+import { RouterConfigContext } from './global-state/routerConfigContext';
 import { RouterRegistryProvider } from './global-state/routerRegistry';
 import { RoutingQueueProvider } from './global-state/routingQueueContext';
-import { maybeHideSplashScreen } from './global-state/store';
-import { StoreContext } from './global-state/storeContext';
+import { useRouterConfig } from './global-state/useRouterConfig';
 import { shouldAppendNotFound, shouldAppendSitemap } from './global-state/utils';
 import { LinkPreviewContextProvider } from './link/preview/LinkPreviewContext';
 import { Screen } from './primitives';
@@ -21,6 +21,7 @@ import type { LinkingOptions } from './react-navigation/native';
 import { StackRouter, useNavigationBuilder } from './react-navigation/native';
 import { initScreensFeatureFlags } from './screensFeatureFlags';
 import type { RequireContext } from './types';
+import { maybeHideSplashScreen } from './utils/splash';
 import { parseUrlUsingCustomBase } from './utils/url';
 import { RootUnmatched } from './views/RootUnmatched';
 import { Sitemap } from './views/Sitemap';
@@ -121,8 +122,8 @@ function ContextNavigator({
     return undefined;
   }, []);
 
-  const storeValue = useStore(context, linking, serverUrl);
-  const { navigationRef, rootComponent, linking: linkingConfig, routeNode } = storeValue;
+  const { routerConfig, rootComponent } = useRouterConfig(context, linking, serverUrl);
+  const { linking: linkingConfig, routeNode } = routerConfig;
 
   useDomComponentNavigation();
 
@@ -143,7 +144,7 @@ function ContextNavigator({
   }
 
   return (
-    <StoreContext.Provider value={storeValue}>
+    <RouterConfigContext.Provider value={routerConfig}>
       <RouterRegistryProvider>
         <RemovalPreventionProvider>
           <UpstreamNavigationContainer
@@ -157,7 +158,7 @@ function ContextNavigator({
           </UpstreamNavigationContainer>
         </RemovalPreventionProvider>
       </RouterRegistryProvider>
-    </StoreContext.Provider>
+    </RouterConfigContext.Provider>
   );
 }
 

@@ -1,6 +1,6 @@
-import { screen } from '@testing-library/react-native';
-import { useEffect, type PropsWithChildren } from 'react';
-import { View, Text } from 'react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
+import { useEffect, useState, type PropsWithChildren } from 'react';
+import { Button, View, Text } from 'react-native';
 import { ScreenStackItem as _ScreenStackItem } from 'react-native-screens';
 
 import { useCompositionOption } from '../../../fork/native-stack/composition-options';
@@ -329,6 +329,51 @@ it('Renders not found for not existing href', async () => {
   });
 
   expect(screen.getByTestId('not-found')).toBeVisible();
+});
+
+it('does not preview a route after it becomes protected', () => {
+  let setGuard: (guard: boolean) => void;
+
+  function Layout() {
+    const [guard, setGuardState] = useState(true);
+    setGuard = setGuardState;
+
+    return (
+      <Stack>
+        <Stack.Protected guard={guard}>
+          <Stack.Screen name="secret" />
+        </Stack.Protected>
+      </Stack>
+    );
+  }
+
+  function Index() {
+    const [, setVersion] = useState(0);
+
+    return (
+      <View>
+        <Button
+          testID="rerender"
+          title="Rerender"
+          onPress={() => setVersion((value) => value + 1)}
+        />
+        <HrefPreview href="/secret" />
+      </View>
+    );
+  }
+
+  renderRouter({
+    _layout: Layout,
+    index: Index,
+    secret: () => <View testID="secret" />,
+  });
+
+  expect(screen.getByTestId('secret')).toBeVisible();
+
+  act(() => setGuard(false));
+  fireEvent.press(screen.getByTestId('rerender'));
+
+  expect(screen.queryByTestId('secret')).toBeNull();
 });
 
 describe('Setting Stack.Screen options in preview', () => {

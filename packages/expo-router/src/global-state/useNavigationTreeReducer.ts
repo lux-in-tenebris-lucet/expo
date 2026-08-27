@@ -50,7 +50,6 @@ type Options = {
   routesWithRemovalPrevented?: readonly string[];
   linking?: ExpoLinkingOptions;
   redirects?: StoreRedirects[];
-  onStateChangeInsertion?: (state: NavigationState) => void;
 };
 
 export type NavigationTreeReport = {
@@ -70,6 +69,21 @@ type NavigationTreeResult = {
 
 const warnedActions = new WeakSet<NavigationAction>();
 const ACTIONS_WITHOUT_REMOVAL_PREVENTION = new Set(['ROUTE_NAMES_CHANGED']);
+
+function warnIfStaleState(state: NavigationState) {
+  if (process.env.NODE_ENV !== 'development') {
+    return;
+  }
+
+  let focusedState: NavigationState | undefined = state;
+  while (focusedState) {
+    if (focusedState.stale) {
+      console.error('Detected stale state. This is likely a bug in Expo Router.');
+      return;
+    }
+    focusedState = focusedState.routes[focusedState.index]?.state as NavigationState | undefined;
+  }
+}
 
 function warnUnhandledAction(action: NavigationAction) {
   if (process.env.NODE_ENV === 'production' || warnedActions.has(action)) {
@@ -266,7 +280,6 @@ export function useNavigationTreeReducer({
   routesWithRemovalPrevented = [],
   linking,
   redirects,
-  onStateChangeInsertion,
 }: Options) {
   const [version, setVersion] = React.useState(0);
   const [result, reactDispatch] = React.useReducer(
@@ -287,7 +300,6 @@ export function useNavigationTreeReducer({
     () => ({ registry, routesWithRemovalPrevented, version, routeNode, linking, redirects }),
     [registry, routesWithRemovalPrevented, version, routeNode, linking, redirects]
   );
-  const stateRef = React.useRef(result.state);
   const previousRegistryRef = React.useRef(registry);
 
   const processAction = React.useCallback(
@@ -312,19 +324,13 @@ export function useNavigationTreeReducer({
     warnIfScreenParam(params);
     processAction({ type: 'ACTION', payload: { action, originKey } });
   });
-  const getState = React.useCallback(() => stateRef.current, []);
-  const getStateForKey = React.useCallback(
-    (key: string) => findStateByKey(stateRef.current, key),
-    []
-  );
   const resetNavigator = useLatestCallback((stateKey: string, routerType: string | undefined) => {
     processAction({ type: 'NAVIGATOR_CHANGED', stateKey, routerType });
   });
 
   React.useInsertionEffect(() => {
-    stateRef.current = result.state;
-    onStateChangeInsertion?.(result.state);
-  }, [onStateChangeInsertion, result.state]);
+    warnIfStaleState(result.state);
+  }, [result.state]);
 
   React.useEffect(() => setVersion((value) => value + 1), [result]);
 
@@ -341,8 +347,6 @@ export function useNavigationTreeReducer({
   return {
     state: result.state,
     report: result.report?.version === version ? result.report : undefined,
-    getState,
-    getStateForKey,
     resetNavigator,
     handleAction,
     processIntent,

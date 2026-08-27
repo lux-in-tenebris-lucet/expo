@@ -19,7 +19,7 @@ type Options<
 > = {
   routes: State['routes'];
   routeNames: State['routeNames'];
-  getState: () => State;
+  state: State;
   navigation: NavigationHelpers<ParamListBase> &
     Partial<NavigationProp<ParamListBase, string, any, any, any>>;
   setOptions: (
@@ -54,19 +54,20 @@ export function useNavigationCache<
 >({
   routes,
   routeNames,
-  getState,
+  state,
   navigation,
   setOptions,
   router,
   emitter,
 }: Options<State, ScreenOptions, EventMap>) {
+  const getState = React.useEffectEvent(() => state);
   // Cache object which holds navigation objects for each screen
   // We use `React.useMemo` instead of `React.useRef` coz we want to invalidate it when deps change
   // In reality, these deps will rarely change, if ever
   const cache = React.useMemo(
     () => ({ current: {} as NavigationCache<State, ScreenOptions, EventMap> }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [getState, navigation, setOptions, emitter]
+    [navigation, setOptions, emitter]
   );
 
   // Keep name-keyed placeholders stable after their real route keys are created.
@@ -147,7 +148,7 @@ export function useNavigationCache<
       isFocused: () => {
         const state = rest.getState();
 
-        if (state.routes[state.index]!.key !== route.key) {
+        if (state.routes[state.index]?.key !== route.key) {
           return false;
         }
 
