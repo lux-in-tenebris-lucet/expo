@@ -8,4 +8,7 @@ interface PresentationDelegate {
   fun getAllPresentedNotifications(): Collection<Notification>
   fun dismissNotifications(identifiers: Collection<String>)
   fun dismissAllNotifications()
+
+  /** Removes group summaries whose children were dismissed outside this delegate. */
+  fun removeOrphanedGroupSummaries() {}
 }

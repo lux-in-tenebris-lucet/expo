@@ -114,6 +114,13 @@ open class ExpoNotificationBuilder(
 
     applySoundsAndVibrations(content, builder)
 
+    // Children alert by default; the summary posted by ExpoPresentationDelegate is the silent one.
+    content.group?.let {
+      builder.setGroup(it)
+      // Swiping a grouped notification away may orphan its group summary — trigger a cleanup
+      builder.setDeleteIntent(NotificationsService.createGroupedNotificationDeletedIntent(context))
+    }
+
     if (content.body != null) {
       // Add body - JSON data - to extras
       val extras = builder.extras
